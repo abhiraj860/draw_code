@@ -393,8 +393,11 @@ def list_jobs(
     experience: Annotated[list[str], Query()] = [],
     q: str = "",
     include_closed: bool = False,
-    page: int = Query(1, ge=1),
+    before: int | None = Query(None, ge=1, description="Cursor: only jobs older than this id"),
 ):
+    """Newest first. Pass `next_before` from a response as `before` to load the
+    next batch; unlike page numbers, this never repeats or skips a job when new
+    ones are posted while someone is scrolling."""
     where: list[str] = []
     params: dict = {"me": user["id"] if user else -1}
     for name, values in (("job_type", job_type), ("work_mode", work_mode), ("experience", experience)):
@@ -411,14 +414,19 @@ def list_jobs(
     if not include_closed:
         where.append("(j.deadline = '' OR j.deadline >= date('now'))")
     base = JOB_SELECT + (" WHERE " + " AND ".join(where) if where else "")
+    batch = JOB_SELECT + " WHERE " + " AND ".join([*where, "j.id < :before"])
 
     with db.transaction() as conn:
         total = conn.execute(f"SELECT COUNT(*) FROM ({base})", params).fetchone()[0]
+        # Ids only grow, so "newest first" is "highest id first". One extra row
+        # tells us whether another batch exists.
         rows = conn.execute(
-            f"{base} ORDER BY j.created_at DESC, j.id DESC LIMIT :limit OFFSET :offset",
-            {**params, "limit": PAGE_SIZE, "offset": (page - 1) * PAGE_SIZE},
+            f"{batch} ORDER BY j.id DESC LIMIT :limit",
+            {**params, "before": before or 2**62, "limit": PAGE_SIZE + 1},
         ).fetchall()
-    return {"items": [job_json(r) for r in rows], "total": total, "page": page, "page_size": PAGE_SIZE}
+    items = [job_json(r) for r in rows[:PAGE_SIZE]]
+    next_before = items[-1]["id"] if len(rows) > PAGE_SIZE else None
+    return {"items": items, "total": total, "next_before": next_before}
 
 
 @app.get("/api/jobs/{job_id}")

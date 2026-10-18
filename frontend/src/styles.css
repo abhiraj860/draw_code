@@ -599,6 +599,13 @@ textarea {
   color: var(--danger);
 }
 
+.feed-end {
+  display: flex;
+  justify-content: center;
+  min-height: 48px;
+  padding: 16px 0;
+}
+
 .pagination {
   display: flex;
   align-items: center;

@@ -45,6 +45,7 @@ export type Job = {
 
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number };
 export type QuestionPage = Page<Question> & { category_counts: Record<string, number> };
+export type JobBatch = { items: Job[]; total: number; next_before: number | null };
 export type Company = { name: string; question_count: number; job_count: number };
 
 export class ApiError extends Error {
@@ -107,7 +108,7 @@ export const api = {
   toggleAsked: (id: number) => request<{ asked_count: number; asked_by_me: boolean }>("POST", `/questions/${id}/asked`),
   deleteQuestion: (id: number) => request<void>("DELETE", `/questions/${id}`),
 
-  jobs: (params: Params) => request<Page<Job>>("GET", `/jobs${queryString(params)}`),
+  jobs: (params: Params) => request<JobBatch>("GET", `/jobs${queryString(params)}`),
   job: (id: number) => request<Job>("GET", `/jobs/${id}`),
   createJob: (body: Omit<Job, "id" | "author" | "created_at" | "mine">) => request<Job>("POST", "/jobs", body),
   deleteJob: (id: number) => request<void>("DELETE", `/jobs/${id}`),

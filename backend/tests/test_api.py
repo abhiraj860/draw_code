@@ -137,3 +137,22 @@ def test_auth_flow():
     assert c.get("/api/auth/me").json() is None
     assert c.post("/api/auth/login", json={"username": "carol", "password": "wrongpass1"}).status_code == 401
     assert c.post("/api/auth/login", json={"username": "carol", "password": "password123"}).status_code == 200
+
+
+def test_jobs_scroll_with_cursor_never_repeats_when_new_jobs_arrive():
+    import main
+
+    alice = client("alice")
+    job = {"title": "Job", "company": "Acme", "job_type": "Full-time", "work_mode": "Remote", "experience": "New Grad", "apply_url": "https://example.com"}
+    for i in range(main.PAGE_SIZE + 5):
+        alice.post("/api/jobs", json={**job, "title": f"Job {i}"})
+
+    first = alice.get("/api/jobs").json()
+    assert len(first["items"]) == main.PAGE_SIZE and first["total"] == main.PAGE_SIZE + 5
+    assert first["items"][0]["title"] == f"Job {main.PAGE_SIZE + 4}"  # newest first
+
+    alice.post("/api/jobs", json={**job, "title": "Posted while scrolling"})
+    second = alice.get("/api/jobs", params={"before": first["next_before"]}).json()
+    seen = [j["id"] for j in first["items"] + second["items"]]
+    assert len(second["items"]) == 5 and len(seen) == len(set(seen))
+    assert second["next_before"] is None

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CheckGroup, ErrorNote, FiltersPanel, JobCard, Pagination } from "../components/ui";
-import { api, queryString, type Job, type Page } from "../lib/api";
+import { CheckGroup, ErrorNote, FiltersPanel, JobCard } from "../components/ui";
+import { api, queryString, type Job } from "../lib/api";
 import { useSession } from "../lib/session";
 
 export function JobsPage() {
@@ -14,29 +14,57 @@ export function JobsPage() {
     company: params.get("company") ?? "",
     q: params.get("q") ?? "",
     include_closed: params.get("include_closed") === "true",
-    page: Number(params.get("page") ?? 1),
   };
   type Filters = typeof filters;
 
-  const [data, setData] = useState<Page<Job> | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(filters.q);
+  const latestRequest = useRef(0);
+  const sentinel = useRef<HTMLDivElement>(null);
 
-  const update = (patch: Partial<Filters>) => {
-    const next = { ...filters, page: 1, ...patch };
-    setParams(queryString({ ...next, page: next.page > 1 ? next.page : undefined }).slice(1));
+  const update = (patch: Partial<Filters>) => setParams(queryString({ ...filters, ...patch }).slice(1));
+
+  /** Loads the first batch (no cursor) or the next one (older than `before`). */
+  const load = async (before?: number) => {
+    const request = ++latestRequest.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const batch = await api.jobs({ ...filters, before });
+      if (request !== latestRequest.current) return; // filters changed meanwhile
+      setJobs((current) => (before ? [...current, ...batch.items.filter((j) => !current.some((c) => c.id === j.id))] : batch.items));
+      setTotal(batch.total);
+      setNextBefore(batch.next_before);
+    } catch (e) {
+      if (request === latestRequest.current) setError((e as Error).message);
+    } finally {
+      if (request === latestRequest.current) setLoading(false);
+    }
   };
 
   const key = params.toString();
   useEffect(() => {
-    setError(null);
-    api
-      .jobs(filters)
-      .then(setData)
-      .catch((e) => setError(e.message));
+    setJobs([]);
+    setTotal(null);
+    setNextBefore(null);
+    load();
     setSearch(filters.q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // Load the next batch when the bottom of the list comes near the screen.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || nextBefore === null || loading || error) return;
+    const observer = new IntersectionObserver((entries) => entries[0].isIntersecting && load(nextBefore), { rootMargin: "600px 0px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextBefore, loading, error, key]);
 
   useEffect(() => {
     if (search === filters.q) return;
@@ -92,13 +120,12 @@ export function JobsPage() {
           </div>
         )}
 
-        <ErrorNote error={error} />
-        {data && (
+        {total !== null && (
           <>
             <p className="result-count muted">
-              {data.total} job{data.total === 1 ? "" : "s"}
+              {total} job{total === 1 ? "" : "s"}
             </p>
-            {data.items.length === 0 ? (
+            {jobs.length === 0 ? (
               <div className="empty">
                 <p>No open jobs match these filters.</p>
                 <Link className="btn primary" to="/jobs/new">
@@ -107,14 +134,30 @@ export function JobsPage() {
               </div>
             ) : (
               <div className="list">
-                {data.items.map((j) => (
+                {jobs.map((j) => (
                   <JobCard key={j.id} job={j} />
                 ))}
               </div>
             )}
-            <Pagination page={data.page} total={data.total} pageSize={data.page_size} onPage={(page) => update({ page })} />
           </>
         )}
+
+        <ErrorNote error={error} />
+        <div ref={sentinel} className="feed-end" aria-live="polite">
+          {loading ? (
+            <span className="muted">Loading jobs…</span>
+          ) : error ? (
+            <button className="btn" onClick={() => load(nextBefore ?? undefined)}>
+              Try again
+            </button>
+          ) : nextBefore !== null ? (
+            <button className="btn" onClick={() => load(nextBefore)}>
+              Load more
+            </button>
+          ) : (
+            jobs.length > 0 && <span className="muted">{total === 1 ? "That's the only matching job." : `You've seen all ${total} jobs.`}</span>
+          )}
+        </div>
       </section>
     </div>
   );
