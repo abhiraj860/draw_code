@@ -1,51 +1,64 @@
-# draw_code
+# Interview Hub
 
-A system design canvas built on [Excalidraw](https://github.com/excalidraw/excalidraw). Pick ready-made components from the sidebar (load balancers, databases, caches, queues, services, boundaries and more), place them on the canvas, and connect them with arrows.
+A site where students share **past interview questions** by company and post **jobs**.
+
+- **Questions:** company, a strict category (DSA, LLD, HLD, AI Coding, Machine Learning, SQL, CS Fundamentals, Frontend, Behavioral, Other), difficulty, round, role, when it was asked, and topic tags.
+- **👍 "Asked to me too":** anyone signed in can confirm they were asked a question. One vote per person; clicking again removes it. The person who posts a question counts as the first vote.
+- **Filters:** category (with live counts), how many people were asked it (2+, 5+, 10+), difficulty, round, company, full-text search, "questions I was asked" and "questions I posted". Sort by most asked or newest. Every filter is in the URL, so a filtered view can be shared as a link.
+- **Jobs:** title, company, location, type, work mode, experience level, apply link, description and deadline. Filter by type, mode and experience. Jobs past their deadline are hidden unless you ask for them.
+- **Companies:** every company with its question and job counts, linking to both sections.
 
 ## Run it
 
-Needs Node 20+.
+Needs Python 3.12+ and Node 20+.
 
 ```bash
-cd frontend
-npm install
-npm run dev        # http://localhost:5173
+./dev.sh                         # API on :8000, site on http://localhost:5173
 ```
 
-`npm run build` makes a static site in `frontend/dist/` that you can host anywhere.
+To try it with demo data (fictional companies), run this once before starting:
 
-## Using it
-
-- **Add a component:** click it in the sidebar to place it in the middle of the view, or drag it onto the canvas. Use the search box to find one by name or by technology (e.g. "redis", "kafka", "s3").
-- **Connect components:** press `A` (or pick the arrow tool) and drag from one component to another. Double-click an arrow to label it ("HTTPS", "publish", ...).
-- **Rename:** double-click a component to select it, then double-click again to edit its text.
-- **Boundaries** (Region, VPC, Availability Zone, Subnet, Group) are dashed boxes placed behind everything, to frame related components. **Note** adds a sticky note for requirements.
-- **Sketchy / Clean** at the bottom of the sidebar sets the look of new components: hand-drawn, or straight lines with a plain font.
-- **Load example** draws a sample design. Everything else (export to PNG/SVG, undo, colors, library) is standard Excalidraw.
-
-Your drawing is saved in the browser automatically.
-
-## Adding components
-
-All components are defined in [frontend/src/lib/components.ts](frontend/src/lib/components.ts). To add one, add an entry to a category:
-
-```ts
-node("api-gateway", "API Gateway", Router, "gateway kong apigee edge"),
-//    id             label          icon    extra search words
+```bash
+cd backend && .venv/bin/python seed.py
 ```
 
-Icons come from [Lucide](https://lucide.dev/icons/); import the icon by name from `lucide-static`. Each category sets the colors for its components.
+Tests: `cd backend && .venv/bin/python -m pytest tests`
 
-Every component carries `customData: { component, category }` on its Excalidraw elements, so a later step (such as generating code from the diagram) can tell exactly what each box is.
+## Strict categories
 
-## Project layout
+The allowed categories, difficulties, rounds, job types, work modes and experience levels are defined once in [backend/taxonomy.py](backend/taxonomy.py). They are enforced:
+
+1. in the UI, which only offers those options;
+2. by the API, which rejects anything else (`422`);
+3. by the database, through `CHECK` constraints.
+
+The database constraints are created along with the database. After changing a list, delete `backend/data.db` (this erases all posts) or migrate the table.
+
+## How it is built
 
 ```
-frontend/src/
-  App.tsx                    top bar, palette, canvas
-  components/Palette.tsx     searchable, collapsible component sidebar
-  components/DiagramPanel.tsx  Excalidraw canvas, drag-and-drop, autosave
-  lib/components.ts          the component catalog
-  lib/insert.ts              builds components as Excalidraw elements
-  lib/example.ts             the sample design
+backend/                  FastAPI + SQLite (single file: backend/data.db)
+  main.py                 all API routes
+  taxonomy.py             the fixed option lists
+  db.py                   schema and connection helpers
+  auth.py                 username/password accounts, cookie sessions (scrypt hashes)
+  seed.py                 optional demo data
+  tests/test_api.py
+frontend/src/             React + TypeScript + React Router (Vite)
+  pages/                  Questions, question detail, share form, Jobs, job detail, post form, Companies, Login
+  components/ui.tsx       cards, 👍 button, filters, pagination
+  lib/                    API client, session state, formatting
 ```
+
+### Production
+
+```bash
+cd frontend && npm run build
+cd ../backend && COOKIE_SECURE=true .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+The backend serves the built site. Put it behind HTTPS (`COOKIE_SECURE=true` requires it).
+
+## Not built yet
+
+Things a public launch would likely need: email verification, password reset, reporting and moderating posts, editing posts, comments or answers, and rate limiting on signups and posts.

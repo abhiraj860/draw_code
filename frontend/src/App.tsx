@@ -1,72 +1,71 @@
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { useEffect, useRef, useState } from "react";
-import { DiagramPanel } from "./components/DiagramPanel";
-import { Palette } from "./components/Palette";
-import { exampleElements } from "./lib/example";
-import { allIconFiles, ensureFonts, insertComponent, type DrawStyle } from "./lib/insert";
-import { load, save } from "./lib/storage";
-
-type Theme = "light" | "dark";
+import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { useLoginRedirect } from "./components/ui";
+import { useSession } from "./lib/session";
+import { CompaniesPage } from "./pages/CompaniesPage";
+import { JobDetailPage } from "./pages/JobDetailPage";
+import { JobsPage } from "./pages/JobsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { NewJobPage } from "./pages/NewJobPage";
+import { NewQuestionPage } from "./pages/NewQuestionPage";
+import { QuestionDetailPage } from "./pages/QuestionDetailPage";
+import { QuestionsPage } from "./pages/QuestionsPage";
 
 export default function App() {
-  const [theme, setTheme] = useState<Theme>(() => load("theme", "light"));
-  const [style, setStyle] = useState<DrawStyle>(() => load("style", "sketch"));
-  const [paletteOpen, setPaletteOpen] = useState<boolean>(() => load("paletteOpen", true));
-  const excalidraw = useRef<ExcalidrawImperativeAPI | null>(null);
-
-  useEffect(() => save("theme", theme), [theme]);
-  useEffect(() => save("style", style), [style]);
-  useEffect(() => save("paletteOpen", paletteOpen), [paletteOpen]);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-
-  const add = (componentId: string, client?: { clientX: number; clientY: number }) => {
-    if (excalidraw.current) insertComponent(excalidraw.current, componentId, style, client);
-  };
-
-  const loadExample = async () => {
-    const api = excalidraw.current;
-    if (!api) return;
-    if (api.getSceneElements().length && !confirm("Replace the current drawing with the example?")) return;
-    await ensureFonts();
-    const elements = exampleElements(style);
-    api.addFiles(Object.values(allIconFiles()));
-    api.updateScene({ elements });
-    api.scrollToContent(elements, { fitToViewport: true, viewportZoomFactor: 0.85 });
-  };
+  const { user, ready, meta, logout } = useSession();
+  const toLogin = useLoginRedirect();
 
   return (
     <div className="app">
-      <header className="topbar">
-        <button
-          className="btn ghost icon"
-          onClick={() => setPaletteOpen(!paletteOpen)}
-          aria-label={paletteOpen ? "Hide components" : "Show components"}
-          aria-pressed={paletteOpen}
-          title={paletteOpen ? "Hide components" : "Show components"}
-        >
-          ☰
-        </button>
-        <div className="brand">
-          <span className="logo" aria-hidden>
-            {"</>"}
-          </span>
-          draw_code
+      <header className="header">
+        <div className="header-inner">
+          <Link to="/" className="brand">
+            <span className="logo" aria-hidden>
+              IH
+            </span>
+            Interview Hub
+          </Link>
+          <nav className="nav">
+            <NavLink to="/questions">Questions</NavLink>
+            <NavLink to="/jobs">Jobs</NavLink>
+            <NavLink to="/companies">Companies</NavLink>
+          </nav>
+          <div className="account">
+            {ready &&
+              (user ? (
+                <>
+                  <span className="muted">@{user.username}</span>
+                  <button className="btn ghost" onClick={logout}>
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button className="btn" onClick={toLogin}>
+                  Sign in
+                </button>
+              ))}
+          </div>
         </div>
-        <span className="tagline">System design canvas</span>
-        <div className="spacer" />
-        <button className="btn" onClick={loadExample}>
-          Load example
-        </button>
-        <button className="btn ghost" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-          {theme === "dark" ? "☀ Light" : "☾ Dark"}
-        </button>
       </header>
 
-      <main className="workspace">
-        {paletteOpen && <Palette theme={theme} style={style} onStyleChange={setStyle} onPick={(id) => add(id)} />}
-        <DiagramPanel theme={theme} onReady={(api) => (excalidraw.current = api)} onDropComponent={add} />
+      <main className="main">
+        {ready && !meta ? (
+          <div className="narrow">
+            <p className="error">Can't reach the server. Is the backend running on port 8000?</p>
+          </div>
+        ) : (
+          <Routes>
+            <Route path="/" element={<Navigate to="/questions" replace />} />
+            <Route path="/questions" element={<QuestionsPage />} />
+            <Route path="/questions/new" element={<NewQuestionPage />} />
+            <Route path="/questions/:id" element={<QuestionDetailPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/jobs/new" element={<NewJobPage />} />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
+            <Route path="/companies" element={<CompaniesPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="*" element={<div className="narrow"><h1>Page not found</h1><Link to="/questions">Go to questions</Link></div>} />
+          </Routes>
+        )}
       </main>
     </div>
   );
