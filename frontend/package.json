@@ -4,20 +4,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-fonts.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-fonts.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
-    "@monaco-editor/react": "^4.7.0",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/xterm": "^6.0.0",
-    "monaco-editor": "^0.57.0",
+    "lucide-static": "^1.59.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-resizable-panels": "^4.14.5"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.31",

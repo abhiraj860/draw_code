@@ -1,23 +1,23 @@
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { arrowSkeleton, componentSkeleton, NODE, type DrawStyle } from "./insert";
 
-type Shape = { id: string; type: "rectangle" | "ellipse" | "diamond"; x: number; y: number; text: string };
+type Place = { key: string; component: string; label?: string; x: number; y: number };
 
-const W = 170;
-const H = 70;
-
-const shapes: Shape[] = [
-  { id: "client", type: "ellipse", x: 0, y: 200, text: "Client" },
-  { id: "lb", type: "rectangle", x: 260, y: 200, text: "Load Balancer" },
-  { id: "api1", type: "rectangle", x: 540, y: 110, text: "API Server 1" },
-  { id: "api2", type: "rectangle", x: 540, y: 290, text: "API Server 2" },
-  { id: "cache", type: "rectangle", x: 840, y: 40, text: "Redis Cache" },
-  { id: "db", type: "rectangle", x: 840, y: 200, text: "Postgres" },
-  { id: "queue", type: "rectangle", x: 840, y: 360, text: "Job Queue" },
-  { id: "worker", type: "rectangle", x: 1120, y: 360, text: "Email Worker" },
+const places: Place[] = [
+  { key: "user", component: "user", x: 0, y: 250 },
+  { key: "cdn", component: "cdn", x: 0, y: 60 },
+  { key: "lb", component: "load-balancer", x: 280, y: 250 },
+  { key: "api1", component: "api-server", label: "API Server 1", x: 560, y: 150 },
+  { key: "api2", component: "api-server", label: "API Server 2", x: 560, y: 350 },
+  { key: "cache", component: "cache", label: "Redis Cache", x: 860, y: 60 },
+  { key: "db", component: "sql-db", label: "Postgres", x: 860, y: 250 },
+  { key: "queue", component: "message-queue", label: "Job Queue", x: 860, y: 440 },
+  { key: "worker", component: "worker", label: "Email Worker", x: 1140, y: 440 },
 ];
 
-const arrows: [string, string, string?][] = [
-  ["client", "lb", "HTTPS"],
+const links: [string, string, string?][] = [
+  ["user", "cdn", "static assets"],
+  ["user", "lb", "HTTPS"],
   ["lb", "api1"],
   ["lb", "api2"],
   ["api1", "cache", "read feed"],
@@ -27,41 +27,36 @@ const arrows: [string, string, string?][] = [
   ["queue", "worker", "consume"],
 ];
 
-/** A small sample design so you can try Generate without drawing first. */
-export function exampleElements() {
-  const byId = new Map(shapes.map((s) => [s.id, s]));
-  return convertToExcalidrawElements([
-    ...shapes.map((s) => ({
-      id: s.id,
-      type: s.type,
-      x: s.x,
-      y: s.y,
-      width: W,
-      height: H,
-      roundness: s.type === "rectangle" ? { type: 3 } : null,
-      label: { text: s.text },
-    })),
-    ...arrows.map(([from, to, label]) => {
-      const a = byId.get(from)!;
-      const b = byId.get(to)!;
-      const x = a.x + W;
-      const y = a.y + H / 2;
-      return {
-        type: "arrow" as const,
-        x,
-        y,
-        width: b.x - x,
-        height: b.y + H / 2 - y,
-        start: { id: from },
-        end: { id: to },
-        ...(label ? { label: { text: label } } : {}),
-      };
-    }),
-    {
-      type: "text",
-      x: 0,
-      y: 480,
-      text: "Cache feed reads for 60s.\nSend welcome emails asynchronously.",
-    },
-  ] as Parameters<typeof convertToExcalidrawElements>[0]);
+/** The point on a box's edge facing another box, so arrows start and end cleanly. */
+function edgePoint(from: Place, to: Place) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) > Math.abs(dy)) return { x: from.x + Math.sign(dx) * (NODE.w / 2), y: from.y };
+  return { x: from.x, y: from.y + Math.sign(dy) * (NODE.h / 2) };
+}
+
+/** A small sample design built from palette components. */
+export function exampleElements(style: DrawStyle) {
+  const byKey = new Map(places.map((p) => [p.key, p]));
+  const ids = new Map<string, string>();
+  const vpc = componentSkeleton("vpc", { x: 700, y: 250 }, style, { label: "VPC", size: { w: 1060, h: 560 } });
+  const nodes = places.flatMap((p) => {
+    const { skeleton, shapeId } = componentSkeleton(p.component, p, style, { label: p.label });
+    ids.set(p.key, shapeId);
+    return skeleton;
+  });
+  const arrows = links.map(([a, b, label]) => {
+    const from = byKey.get(a)!;
+    const to = byKey.get(b)!;
+    return arrowSkeleton(
+      { id: ids.get(a)!, at: edgePoint(from, to) },
+      { id: ids.get(b)!, at: edgePoint(to, from) },
+      style,
+      label,
+    );
+  });
+  const note = componentSkeleton("note", { x: 0, y: 560 }, style, {
+    label: "Cache feed reads for 60s.\nSend welcome emails\nasynchronously.",
+  });
+  return convertToExcalidrawElements([...vpc.skeleton, ...nodes, ...arrows, ...note.skeleton], { regenerateIds: false });
 }
