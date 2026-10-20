@@ -1,5 +1,0 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-# for seed.py and tests
-httpx>=0.27
-pytest>=8
