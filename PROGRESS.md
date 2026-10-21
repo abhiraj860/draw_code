@@ -1,6 +1,6 @@
 # Progress
 
-**Current topic:** 1.2
+**Current topic:** 1.2b
 **Completed:** 1/96
 
 Format when done: `- [x] X.Y Topic — YYYY-MM-DD — what I built`
@@ -8,6 +8,8 @@ Format when done: `- [x] X.Y Topic — YYYY-MM-DD — what I built`
 ## 1. LLM fundamentals
 - [x] 1.1 Tokens, tokenization, context windows, and their cost and latency impact — 2026-10-21 — measured token counts per text type; built cost_usd/fits/monthly_cost; saw finish_reason=length + latency scaling with output
 - [ ] 1.2 Sampling: temperature, top-p, max tokens, stop sequences
+  - [x] 1.2a temperature & top-p — 2026-10-21 — built softmax(temp) + top_p from scratch (stable, temp=0 argmax); saw 400 on temp=3
+  - [ ] 1.2b stop sequences & max tokens
 - [ ] 1.3 Model families and tradeoffs (frontier vs small/fast models, open vs closed)
 - [ ] 1.4 Reasoning/extended-thinking models and when they're worth the cost
 - [ ] 1.5 Multimodal inputs: images, PDFs, audio
